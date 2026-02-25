@@ -1,0 +1,67 @@
+import type {
+  Company,
+  Template,
+  RFQ,
+  Quote,
+  CreateRFQReq,
+  CreateQuoteReq,
+} from '../types/dto'
+
+const BASE_URL = '/api/v1'
+
+function getAuthHeaders(): Record<string, string> {
+  const tenantCompanyId = localStorage.getItem('tenantCompanyId') ?? ''
+  const userRole = localStorage.getItem('userRole') ?? ''
+  return {
+    'Content-Type': 'application/json',
+    'X-Tenant-Company-Id': tenantCompanyId,
+    'X-Mock-User-Role': userRole,
+  }
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      ...getAuthHeaders(),
+      ...(options?.headers ?? {}),
+    },
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(body.error ?? `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+// Health
+export const getHealth = () => request<{ status: string }>('/health')
+
+// Companies
+export const listCompanies = (type?: string) =>
+  request<Company[]>(`/companies${type ? `?type=${type}` : ''}`)
+
+// Templates
+export const listTemplates = () => request<Template[]>('/templates')
+export const getTemplate = (categoryKey: string) =>
+  request<Template>(`/templates/${categoryKey}`)
+
+// RFQs
+export const listRFQs = () => request<RFQ[]>('/rfqs')
+export const getRFQ = (id: string) => request<RFQ>(`/rfqs/${id}`)
+export const createRFQ = (body: CreateRFQReq) =>
+  request<RFQ>('/rfqs', { method: 'POST', body: JSON.stringify(body) })
+export const publishRFQ = (id: string) =>
+  request<RFQ>(`/rfqs/${id}/publish`, { method: 'POST' })
+export const closeRFQ = (id: string) =>
+  request<RFQ>(`/rfqs/${id}/close`, { method: 'POST' })
+
+// Quotes
+export const listQuotesByRFQ = (rfqId: string) =>
+  request<Quote[]>(`/rfqs/${rfqId}/quotes`)
+export const createQuote = (rfqId: string, body: CreateQuoteReq) =>
+  request<Quote>(`/rfqs/${rfqId}/quotes`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+export const getQuote = (id: string) => request<Quote>(`/quotes/${id}`)
