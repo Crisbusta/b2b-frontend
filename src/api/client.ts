@@ -12,8 +12,8 @@ import type { Order } from '../types/dto'
 const BASE_URL = `${(import.meta.env.VITE_API_URL ?? '').trim()}/api/v1`
 
 function getAuthHeaders(): Record<string, string> {
-  const tenantCompanyId = localStorage.getItem('tenantCompanyId') ?? ''
-  const userRole = localStorage.getItem('userRole') ?? ''
+  const tenantCompanyId = localStorage.getItem('tenantCompanyId') || 'system'
+  const userRole = localStorage.getItem('userRole') || 'company_admin'
   return {
     'Content-Type': 'application/json',
     'X-Tenant-Company-Id': tenantCompanyId,
