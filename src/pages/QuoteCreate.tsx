@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getRFQ, createQuote } from '../api/client'
 import type { RFQ, CreateQuoteItemReq } from '../types/dto'
+import { useToast } from '../contexts/ToastContext'
+
+const formatCLP = (n: number) =>
+  new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 
 /* ── Icons ──────────────────────────────────────────── */
 const IconInfo = () => (
@@ -33,6 +37,7 @@ const IconSpinner = () => (
 export default function QuoteCreate() {
   const { id }   = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { addToast } = useToast()
 
   const [rfq,    setRfq]    = useState<RFQ | null>(null)
   const [items,  setItems]  = useState<CreateQuoteItemReq[]>([])
@@ -73,6 +78,7 @@ export default function QuoteCreate() {
     setSaving(true)
     try {
       await createQuote(id, { items })
+      addToast('Cotización enviada correctamente', 'success')
       navigate(`/rfqs/${id}`)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al enviar cotización')
@@ -205,10 +211,12 @@ export default function QuoteCreate() {
                     border: '1px solid var(--success)',
                   }}>
                     <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 500 }}>
-                      Subtotal ({rfqItem.quantity} {rfqItem.unit} × {items[idx].unitPrice.toLocaleString('es-CL')})
+                      Subtotal ({rfqItem.quantity} {rfqItem.unit} × {items[idx].currency === 'CLP' ? formatCLP(items[idx].unitPrice) : items[idx].unitPrice.toLocaleString('es-CL')})
                     </span>
-                    <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: 15, fontFeatureSettings: '"tnum"' }}>
-                      {(rfqItem.quantity * items[idx].unitPrice).toLocaleString('es-CL')} {items[idx].currency}
+                    <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: 15, fontVariantNumeric: 'tabular-nums' }}>
+                      {items[idx].currency === 'CLP'
+                        ? formatCLP(rfqItem.quantity * items[idx].unitPrice)
+                        : `${(rfqItem.quantity * items[idx].unitPrice).toLocaleString('es-CL')} ${items[idx].currency}`}
                     </span>
                   </div>
                 )}
@@ -234,8 +242,10 @@ export default function QuoteCreate() {
                     <span style={{ color: 'var(--text-muted)' }}>
                       L{rfqItem.lineNumber} ({rfqItem.quantity} {rfqItem.unit})
                     </span>
-                    <span style={{ fontWeight: 600, fontFeatureSettings: '"tnum"' }}>
-                      {qi?.unitPrice > 0 ? `${sub.toLocaleString('es-CL')} ${qi.currency}` : '—'}
+                    <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      {qi?.unitPrice > 0
+                        ? (qi.currency === 'CLP' ? formatCLP(sub) : `${sub.toLocaleString('es-CL')} ${qi.currency}`)
+                        : '—'}
                     </span>
                   </div>
                 )
@@ -243,8 +253,10 @@ export default function QuoteCreate() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0 10px', fontWeight: 800, fontSize: 16 }}>
                 <span>Total estimado</span>
-                <span style={{ color: 'var(--success)', fontFeatureSettings: '"tnum"' }}>
-                  {totalValue > 0 ? `${totalValue.toLocaleString('es-CL')} ${items[0]?.currency ?? ''}` : '—'}
+                <span style={{ color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                  {totalValue > 0
+                    ? (items[0]?.currency === 'CLP' ? formatCLP(totalValue) : `${totalValue.toLocaleString('es-CL')} ${items[0]?.currency ?? ''}`)
+                    : '—'}
                 </span>
               </div>
             </div>

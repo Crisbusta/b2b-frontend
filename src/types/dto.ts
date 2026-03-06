@@ -94,3 +94,38 @@ export interface CreateQuoteItemReq {
 export interface CreateQuoteReq {
   items: CreateQuoteItemReq[]
 }
+
+// Orders (frontend-only, derived from awarded RFQs)
+export type OrderStatus = 'confirmed' | 'in_production' | 'quality_check' | 'export' | 'in_transit' | 'delivered'
+
+export interface Order {
+  id: string
+  rfqId: string
+  rfqTitle: string
+  buyerCompanyId: string
+  supplierCompanyId: string
+  status: OrderStatus
+  totalAmountCLP: number
+  trackingNumber: string
+  estimatedDeliveryDays: number
+  incoterms: string
+  carrier: string
+  shippingOrigin: string
+  items: Array<{ rfqItemId: string; quantity: number; unit: string; unitPriceCLP: number }>
+  createdAt: string
+}
+
+// Supplier profile enrichment (merged with Company from API)
+export interface SupplierProfile {
+  id: string
+  tagline: string
+  description: string
+  certifications: string[]
+  yearsInBusiness: number
+  location: string
+  rating: number
+  completedOrders: number
+  avgResponseDays: number
+  categories: string[]
+  employeeCount: string
+}

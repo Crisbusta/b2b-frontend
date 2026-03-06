@@ -65,16 +65,17 @@ export default function RFQCreate() {
   const [params]      = useSearchParams()
   const preselect     = params.get('category') ?? ''
 
-  const [step,       setStep]      = useState(preselect ? 1 : 0)
-  const [templates,  setTemplates] = useState<Template[]>([])
-  const [suppliers,  setSuppliers] = useState<Company[]>([])
-  const [categoryKey, setCategory] = useState(preselect)
-  const [template,   setTemplate]  = useState<Template | null>(null)
-  const [title,      setTitle]     = useState('')
-  const [invited,    setInvited]   = useState<string[]>([])
-  const [items,      setItems]     = useState<CreateRFQItemReq[]>([])
-  const [error,      setError]     = useState('')
-  const [saving,     setSaving]    = useState(false)
+  const [step,        setStep]       = useState(preselect ? 1 : 0)
+  const [templates,   setTemplates]  = useState<Template[]>([])
+  const [suppliers,   setSuppliers]  = useState<Company[]>([])
+  const [categoryKey, setCategory]   = useState(preselect)
+  const [template,    setTemplate]   = useState<Template | null>(null)
+  const [title,       setTitle]      = useState('')
+  const [invited,     setInvited]    = useState<string[]>([])
+  const [items,       setItems]      = useState<CreateRFQItemReq[]>([])
+  const [showOptional, setShowOptional] = useState<Record<number, boolean>>({})
+  const [error,       setError]      = useState('')
+  const [saving,      setSaving]     = useState(false)
 
   useEffect(() => {
     listTemplates().then(ts => {
@@ -357,12 +358,14 @@ export default function RFQCreate() {
                       </div>
                     </div>
 
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 14 }}>
-                        Especificaciones técnicas
-                      </div>
-                      <div className="grid-2">
-                        {template?.attributes.map(attr => (
+                    {/* Spec fields — required + optional accordion */}
+                    {(() => {
+                      const requiredAttrs = template?.attributes.filter(a => a.required) ?? []
+                      const optionalAttrs = template?.attributes.filter(a => !a.required) ?? []
+                      const isOpen = !!showOptional[idx]
+
+                      function renderField(attr: typeof requiredAttrs[0]) {
+                        return (
                           <div key={attr.key} className="form-group" style={{ marginBottom: 12 }}>
                             <label className="form-label">
                               {attr.label}
@@ -392,9 +395,48 @@ export default function RFQCreate() {
                                 onChange={e => updateItem(idx, attr.key, e.target.value)} />
                             )}
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                        )
+                      }
+
+                      return (
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                          {requiredAttrs.length > 0 && (
+                            <>
+                              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 14 }}>
+                                Especificaciones requeridas
+                              </div>
+                              <div className="grid-2">{requiredAttrs.map(renderField)}</div>
+                            </>
+                          )}
+
+                          {optionalAttrs.length > 0 && (
+                            <div style={{ marginTop: requiredAttrs.length > 0 ? 16 : 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => setShowOptional(p => ({ ...p, [idx]: !p[idx] }))}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 6,
+                                  background: 'none', border: 'none', cursor: 'pointer',
+                                  fontSize: 13, fontWeight: 600, color: 'var(--primary)',
+                                  padding: '6px 0', marginBottom: isOpen ? 14 : 0,
+                                }}
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                  style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s ease' }}>
+                                  <polyline points="9 18 15 12 9 6"/>
+                                </svg>
+                                Especificaciones adicionales ({optionalAttrs.length})
+                              </button>
+                              {isOpen && (
+                                <div className="grid-2" style={{ padding: '0 0 4px 20px', borderLeft: '2px solid var(--border)' }}>
+                                  {optionalAttrs.map(renderField)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               ))}

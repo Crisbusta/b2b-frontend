@@ -6,6 +6,8 @@ import type {
   CreateRFQReq,
   CreateQuoteReq,
 } from '../types/dto'
+import { MOCK_ORDERS } from '../data/mockData'
+import type { Order } from '../types/dto'
 
 const BASE_URL = '/api/v1'
 
@@ -65,3 +67,18 @@ export const createQuote = (rfqId: string, body: CreateQuoteReq) =>
     body: JSON.stringify(body),
   })
 export const getQuote = (id: string) => request<Quote>(`/quotes/${id}`)
+
+// Company by ID
+export const getCompany = (id: string) => request<Company>(`/companies/${id}`)
+
+// Orders (frontend-only)
+export function listOrders(buyerCompanyId?: string): Promise<Order[]> {
+  const orders = buyerCompanyId
+    ? MOCK_ORDERS.filter(o => o.buyerCompanyId === buyerCompanyId)
+    : MOCK_ORDERS
+  return Promise.resolve(orders)
+}
+
+export function getOrder(id: string): Promise<Order | null> {
+  return Promise.resolve(MOCK_ORDERS.find(o => o.id === id) ?? null)
+}

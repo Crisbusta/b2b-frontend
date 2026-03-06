@@ -6,32 +6,12 @@ interface Props {
   supplierNames: Record<string, string>
 }
 
-/* ── Icons ──────────────────────────────────────────── */
-const IconStar = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-  </svg>
-)
+const formatCLP = (n: number) =>
+  new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 
-const IconClock = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
-  </svg>
-)
-
-const IconAlertTriangle = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-  </svg>
-)
-
-const IconCheckSmall = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12"/>
-  </svg>
-)
+function fmtPrice(amount: number, currency: string) {
+  return currency === 'CLP' ? formatCLP(amount) : `${amount.toLocaleString('es-CL')} ${currency}`
+}
 
 /* ── Utils ───────────────────────────────────────────── */
 function specDiffers(req: Record<string, unknown>, confirmed: Record<string, unknown>): boolean {
@@ -47,43 +27,84 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
     return <p style={{ color: 'var(--text-muted)', padding: '12px 0' }}>No hay cotizaciones para comparar.</p>
   }
 
+  const totals = quotes.map(q =>
+    rfq.items.reduce((sum, item) => {
+      const qi = q.items.find(qi => qi.rfqItemId === item.id)
+      return sum + (qi ? qi.unitPrice * item.quantity : 0)
+    }, 0)
+  )
+  const minTotal   = Math.min(...totals)
+  const winnerIdx  = totals.indexOf(minTotal)
+
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--success)' }}>
-          <IconCheckSmall /> Spec conforme
+      <div style={{ display: 'flex', gap: 16, padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, flexWrap: 'wrap', background: 'var(--bg-subtle)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#D97706', fontWeight: 600 }}>
+          <span className="mat-icon mat-icon-filled" style={{ fontSize: 14, color: '#D97706' }}>emoji_events</span>
+          Mejor precio total
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--warning)' }}>
-          <IconAlertTriangle /> Spec modificada
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--success)', fontWeight: 600 }}>
+          <span className="mat-icon mat-icon-filled" style={{ fontSize: 14 }}>check_circle</span>
+          Spec conforme
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-light)' }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--text-light)', display: 'inline-block' }} />
-          Sin ítem
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--warning)', fontWeight: 600 }}>
+          <span className="mat-icon" style={{ fontSize: 14 }}>warning</span>
+          Spec modificada
         </div>
       </div>
 
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
         <thead>
           <tr>
-            <th style={{ background: 'var(--primary)', color: '#fff', padding: '10px 14px', textAlign: 'left', position: 'sticky', left: 0, zIndex: 1 }}>
-              Ítem / Spec
+            <th style={{
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-muted)',
+              padding: '12px 16px', textAlign: 'left',
+              position: 'sticky', left: 0, zIndex: 1,
+              fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+              borderBottom: '2px solid var(--border)',
+            }}>
+              Ítem / Especificación
             </th>
-            {quotes.map(q => (
-              <th key={q.id} style={{ background: 'var(--primary)', color: '#fff', padding: '10px 14px', textAlign: 'center', minWidth: 180 }}>
-                <div style={{ fontWeight: 700 }}>{supplierNames[q.supplierCompanyId] ?? q.supplierCompanyId}</div>
-                <div style={{ fontSize: 11, color: '#93C5FD', fontWeight: 400, marginTop: 2 }}>
-                  {new Date(q.createdAt).toLocaleDateString('es-CL')}
-                </div>
-              </th>
-            ))}
+            {quotes.map((q, qi) => {
+              const isWinner = qi === winnerIdx
+              return (
+                <th key={q.id} style={{
+                  background: isWinner ? '#F0FDF4' : 'var(--bg-subtle)',
+                  padding: '12px 16px', textAlign: 'center', minWidth: 200,
+                  borderLeft: `1px solid ${isWinner ? '#34D399' : 'var(--border)'}`,
+                  borderBottom: `2px solid ${isWinner ? '#34D399' : 'var(--border)'}`,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: isWinner ? '#059669' : 'var(--primary)', marginBottom: 4 }}>
+                    Proveedor
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: isWinner ? '#065F46' : 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                    {isWinner && <span className="mat-icon mat-icon-filled" style={{ fontSize: 14, color: '#D97706' }}>emoji_events</span>}
+                    {supplierNames[q.supplierCompanyId] ?? q.supplierCompanyId}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginTop: 3 }}>
+                    {new Date(q.createdAt).toLocaleDateString('es-CL')}
+                  </div>
+                  {isWinner && (
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      marginTop: 6, background: '#D1FAE5',
+                      border: '1px solid #34D399', borderRadius: 20,
+                      padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#065F46',
+                    }}>
+                      MEJOR PRECIO
+                    </div>
+                  )}
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
           {rfq.items.map((item, itemIdx) => {
             const quoteItems = quotes.map(q => q.items.find(qi => qi.rfqItemId === item.id))
-
             const prices   = quoteItems.map(qi => qi?.unitPrice ?? Infinity).filter(p => isFinite(p))
             const minPrice = prices.length > 0 ? Math.min(...prices) : Infinity
 
@@ -92,8 +113,7 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
                 {/* Item header row */}
                 <tr key={`header-${item.id}`} style={{ background: 'var(--bg-subtle)' }}>
                   <td style={{
-                    padding: '10px 14px',
-                    fontWeight: 700, color: 'var(--primary)',
+                    padding: '10px 16px', fontWeight: 700, color: 'var(--primary)',
                     borderBottom: '1px solid var(--border)',
                     position: 'sticky', left: 0, background: 'var(--bg-subtle)', zIndex: 1,
                   }}>
@@ -101,9 +121,15 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
                   </td>
                   {quotes.map((q, qi) => {
                     const quoteItem = quoteItems[qi]
+                    const isWinner  = qi === winnerIdx
                     if (!quoteItem) {
                       return (
-                        <td key={q.id} style={{ padding: '10px 14px', textAlign: 'center', borderBottom: '1px solid var(--border)', color: 'var(--text-light)' }}>
+                        <td key={q.id} style={{
+                          padding: '10px 16px', textAlign: 'center',
+                          borderBottom: '1px solid var(--border)',
+                          color: 'var(--text-light)',
+                          borderLeft: `1px solid ${isWinner ? '#34D399' : 'var(--border)'}`,
+                        }}>
                           Sin cotizar
                         </td>
                       )
@@ -114,26 +140,26 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
 
                     return (
                       <td key={q.id} style={{
-                        padding: '10px 14px',
-                        textAlign: 'center',
+                        padding: '10px 16px', textAlign: 'center',
                         borderBottom: '1px solid var(--border)',
-                        background: isMin ? '#F0FDF4' : 'transparent',
+                        background: isWinner ? '#F0FDF4' : 'transparent',
+                        borderLeft: `1px solid ${isWinner ? '#34D399' : 'var(--border)'}`,
                       }}>
                         {/* Price */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 4 }}>
-                          {isMin && <span title="Mejor precio" style={{ color: '#F59E0B' }}><IconStar /></span>}
-                          <span style={{ fontSize: 16, fontWeight: 800, color: isMin ? 'var(--success)' : 'var(--text)', fontFeatureSettings: '"tnum"' }}>
-                            {quoteItem.unitPrice.toLocaleString('es-CL')}
+                          {isMin && <span className="mat-icon mat-icon-filled" style={{ fontSize: 14, color: '#D97706' }}>star</span>}
+                          <span style={{ fontSize: 16, fontWeight: 800, color: isMin ? 'var(--success)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                            {fmtPrice(quoteItem.unitPrice, quoteItem.currency)}
                           </span>
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{quoteItem.currency}</span>
                         </div>
                         {/* Subtotal */}
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 5, fontFeatureSettings: '"tnum"' }}>
-                          Total: {(quoteItem.unitPrice * item.quantity).toLocaleString('es-CL')} {quoteItem.currency}
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 5, fontVariantNumeric: 'tabular-nums' }}>
+                          Subtotal: {fmtPrice(quoteItem.unitPrice * item.quantity, quoteItem.currency)}
                         </div>
                         {/* Lead time */}
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)', marginBottom: 5 }}>
-                          <IconClock /> {quoteItem.leadTimeDays} días
+                          <span className="mat-icon" style={{ fontSize: 13 }}>schedule</span>
+                          {quoteItem.leadTimeDays} días
                         </div>
                         {/* Spec badge */}
                         <div style={{
@@ -143,8 +169,8 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
                           color: differs ? 'var(--warning)' : 'var(--success)',
                         }}>
                           {differs
-                            ? <><IconAlertTriangle /> {diffed.length} cambio{diffed.length > 1 ? 's' : ''}</>
-                            : <><IconCheckSmall /> Spec conforme</>
+                            ? <><span className="mat-icon" style={{ fontSize: 12 }}>warning</span> {diffed.length} cambio{diffed.length > 1 ? 's' : ''}</>
+                            : <><span className="mat-icon mat-icon-filled" style={{ fontSize: 12 }}>check_circle</span> Spec conforme</>
                           }
                         </div>
                         {/* Changed spec details */}
@@ -166,7 +192,7 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
 
                 {/* Spec row */}
                 <tr key={`spec-${item.id}`} style={{ background: itemIdx % 2 === 0 ? '#FAFBFD' : '#fff' }}>
-                  <td style={{ padding: '8px 14px 14px', borderBottom: '2px solid var(--border)', position: 'sticky', left: 0, background: 'inherit', zIndex: 1 }}>
+                  <td style={{ padding: '8px 16px 14px', borderBottom: '2px solid var(--border)', position: 'sticky', left: 0, background: 'inherit', zIndex: 1 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>
                       Spec requerida
                     </div>
@@ -180,9 +206,20 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
                   </td>
                   {quotes.map((q, qi) => {
                     const quoteItem = quoteItems[qi]
-                    if (!quoteItem) return <td key={q.id} style={{ borderBottom: '2px solid var(--border)' }} />
+                    const isWinner  = qi === winnerIdx
+                    if (!quoteItem) return (
+                      <td key={q.id} style={{
+                        borderBottom: '2px solid var(--border)',
+                        borderLeft: `1px solid ${isWinner ? '#34D399' : 'var(--border)'}`,
+                      }} />
+                    )
                     return (
-                      <td key={q.id} style={{ padding: '8px 14px 14px', borderBottom: '2px solid var(--border)', verticalAlign: 'top' }}>
+                      <td key={q.id} style={{
+                        padding: '8px 16px 14px', borderBottom: '2px solid var(--border)',
+                        verticalAlign: 'top',
+                        background: isWinner ? '#F0FDF4' : 'transparent',
+                        borderLeft: `1px solid ${isWinner ? '#34D399' : 'var(--border)'}`,
+                      }}>
                         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>
                           Spec ofertada
                         </div>
@@ -211,33 +248,35 @@ export default function RFQCompareTable({ rfq, quotes, supplierNames }: Props) {
           })}
         </tbody>
 
-        {/* Summary row */}
+        {/* Summary / totals row */}
         <tfoot>
           <tr style={{ background: 'var(--primary-light)' }}>
-            <td style={{ padding: '12px 14px', fontWeight: 700, color: 'var(--primary)', position: 'sticky', left: 0, background: 'var(--primary-light)' }}>
+            <td style={{ padding: '14px 16px', fontWeight: 700, color: 'var(--primary)', position: 'sticky', left: 0, background: 'var(--primary-light)', fontSize: 13 }}>
               Total estimado
             </td>
-            {quotes.map(q => {
-              const total = rfq.items.reduce((sum, item) => {
-                const qi = q.items.find(qi => qi.rfqItemId === item.id)
-                return sum + (qi ? qi.unitPrice * item.quantity : 0)
-              }, 0)
-              const currency  = q.items[0]?.currency ?? ''
-              const allTotals = quotes.map(qq => rfq.items.reduce((s, item) => {
-                const qi = qq.items.find(qi => qi.rfqItemId === item.id)
-                return s + (qi ? qi.unitPrice * item.quantity : 0)
-              }, 0))
-              const isMinTotal = total === Math.min(...allTotals)
+            {quotes.map((q, qi) => {
+              const total    = totals[qi]
+              const currency = q.items[0]?.currency ?? ''
+              const isWinner = qi === winnerIdx
 
               return (
                 <td key={q.id} style={{
-                  padding: '12px 14px', textAlign: 'center',
-                  fontWeight: 800, fontSize: 15,
-                  color: isMinTotal ? 'var(--success)' : 'var(--text)',
-                  fontFeatureSettings: '"tnum"',
+                  padding: '14px 16px', textAlign: 'center',
+                  fontWeight: 800, fontSize: 16,
+                  color: isWinner ? 'var(--success)' : 'var(--text)',
+                  fontVariantNumeric: 'tabular-nums',
+                  background: isWinner ? '#DCFCE7' : 'var(--primary-light)',
+                  borderLeft: `1px solid ${isWinner ? '#34D399' : 'var(--border)'}`,
                 }}>
-                  {isMinTotal && <span style={{ color: '#F59E0B', marginRight: 4 }}><IconStar /></span>}
-                  {total.toLocaleString('es-CL')} {currency}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {isWinner && <span className="mat-icon mat-icon-filled" style={{ fontSize: 16, color: '#D97706' }}>emoji_events</span>}
+                    {fmtPrice(total, currency)}
+                  </div>
+                  {isWinner && (
+                    <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 500, marginTop: 3 }}>
+                      Mejor oferta total
+                    </div>
+                  )}
                 </td>
               )
             })}

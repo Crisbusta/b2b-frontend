@@ -15,43 +15,6 @@ const ROLE_LABELS: Record<string, string> = {
   company_admin: 'Administrador',
 }
 
-/* ── SVG Icons ──────────────────────────────────────── */
-const IconDashboard = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-    <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-  </svg>
-)
-
-const IconGrid = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>
-    <line x1="12" y1="3" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="21"/>
-    <line x1="3" y1="12" x2="8" y2="12"/><line x1="16" y1="12" x2="21" y2="12"/>
-  </svg>
-)
-
-const IconClipboard = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="2" width="6" height="4" rx="1"/>
-    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-    <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
-  </svg>
-)
-
-const IconPlus = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-  </svg>
-)
-
-const IconLogOut = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-  </svg>
-)
-
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate    = useNavigate()
   const location    = useLocation()
@@ -72,10 +35,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }
 
   const navItems = [
-    { to: '/dashboard', label: 'Dashboard', icon: <IconDashboard /> },
-    { to: '/catalog',   label: 'Vitrina',   icon: <IconGrid /> },
-    { to: '/rfqs',      label: isBuyer ? 'Mis RFQs' : 'Invitaciones', icon: <IconClipboard /> },
-    ...(isBuyer ? [{ to: '/rfqs/new', label: 'Nueva RFQ', icon: <IconPlus /> }] : []),
+    { to: '/dashboard', label: 'Dashboard',   icon: 'grid_view' },
+    { to: '/catalog',   label: 'Vitrina',      icon: 'storefront' },
+    { to: '/rfqs',      label: isBuyer ? 'Mis RFQs' : 'Solicitudes de Cotización', icon: 'request_quote' },
+    ...(isBuyer ? [
+      { to: '/rfqs/new', label: 'Nueva RFQ', icon: 'add_circle' },
+      { to: '/orders',   label: 'Pedidos',    icon: 'inventory_2' },
+    ] : [
+      { to: '/seller', label: 'Centro Vendedor', icon: 'storefront' },
+    ]),
   ]
 
   return (
@@ -84,28 +52,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* ── Top Bar ──────────────────────────────────────── */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 100,
-        background: 'var(--primary)',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)',
         height: 'var(--nav-height)',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
       }}>
         <div className="container" style={{ height: '100%', display: 'flex', alignItems: 'center', gap: '28px' }}>
 
           {/* Logo */}
           <Link to="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', flexShrink: 0 }}>
             <div style={{
-              width: 34, height: 34,
+              width: 36, height: 36,
               background: 'var(--accent)',
-              borderRadius: 8,
+              borderRadius: 10,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
+              <span className="mat-icon mat-icon-filled" style={{ color: '#fff', fontSize: 20 }}>precision_manufacturing</span>
             </div>
             <div>
-              <div style={{ color: '#fff', fontWeight: 800, fontSize: 15, lineHeight: 1.1, letterSpacing: '-0.01em' }}>Marketplace B2B</div>
-              <div style={{ color: '#93C5FD', fontSize: 10, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Industrial & Construcción</div>
+              <div style={{ color: 'var(--primary)', fontWeight: 800, fontSize: 15, lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                <span>INDUS</span><span style={{ fontWeight: 400 }}>MARKET</span>
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Industrial & Construcción</div>
             </div>
           </Link>
 
@@ -117,7 +87,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 to={to}
                 className={`nav-link${isActive(to) ? ' active' : ''}`}
               >
-                {icon}
+                <span className="mat-icon" style={{ fontSize: 18 }}>{icon}</span>
                 {label}
               </Link>
             ))}
@@ -126,8 +96,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {/* User info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             <div className="nav-avatar">{initials}</div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#fff', fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{companyName}</div>
+            <div>
+              <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{companyName}</div>
               <div style={{ fontSize: 10, marginTop: 2 }}>
                 <span className={`badge badge-${role === 'supplier_user' ? 'supplier' : 'buyer'}`}
                   style={{ fontSize: 9, padding: '1px 6px' }}>
@@ -136,7 +106,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <button className="nav-logout-btn" onClick={logout}>
-              <IconLogOut />
+              <span className="mat-icon" style={{ fontSize: 16 }}>logout</span>
               Salir
             </button>
           </div>

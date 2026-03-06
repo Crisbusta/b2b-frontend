@@ -3,6 +3,16 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getRFQ, publishRFQ, closeRFQ, listQuotesByRFQ, listCompanies } from '../api/client'
 import type { RFQ, Quote, Company } from '../types/dto'
 import RFQCompareTable from '../components/RFQCompareTable'
+import { useToast } from '../contexts/ToastContext'
+
+const IconAward = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>
+  </svg>
+)
+
+const formatCLP = (n: number) =>
+  new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Borrador', published: 'Publicada', closed: 'Cerrada', awarded: 'Adjudicada',
@@ -47,6 +57,20 @@ const IconBarChart = () => (
   </svg>
 )
 
+const IconDownload = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+)
+
+const IconAlertCircle = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+)
+
 const IconList = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
@@ -79,6 +103,12 @@ const IconArrowLeft = () => (
   </svg>
 )
 
+const IconCheckSmall = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+)
+
 function StatusIcon({ status }: { status: string }) {
   if (status === 'published') return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
   if (status === 'draft')     return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -89,6 +119,7 @@ function StatusIcon({ status }: { status: string }) {
 export default function RFQDetail() {
   const { id }      = useParams<{ id: string }>()
   const navigate    = useNavigate()
+  const { addToast } = useToast()
   const role        = localStorage.getItem('userRole') ?? ''
   const tenantId    = localStorage.getItem('tenantCompanyId') ?? ''
   const isBuyer     = role === 'buyer_user' || role === 'company_admin'
@@ -110,6 +141,8 @@ export default function RFQDetail() {
         listCompanies('supplier'),
       ])
       setRfq(r); setQuotes(q); setSuppliers(s)
+      // Auto-expand compare when ≥2 quotes received
+      if (q.length >= 2) setCompare(true)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al cargar')
     }
@@ -117,9 +150,14 @@ export default function RFQDetail() {
 
   useEffect(() => { load() }, [load])
 
-  async function doAction(fn: () => Promise<RFQ>) {
+  async function doAction(fn: () => Promise<RFQ>, successMsg: string) {
     setActionErr('')
-    try { setRfq(await fn()) } catch (e: unknown) { setActionErr(e instanceof Error ? e.message : 'Error') }
+    try {
+      setRfq(await fn())
+      addToast(successMsg, 'success')
+    } catch (e: unknown) {
+      setActionErr(e instanceof Error ? e.message : 'Error')
+    }
   }
 
   if (!rfq && !error) return (
@@ -138,6 +176,15 @@ export default function RFQDetail() {
   const canQuote    = isSupplier && rfq.status === 'published' && rfq.invitedSupplierCompanyIds.includes(tenantId)
   const totalItems  = rfq.items.length
 
+  const statusOrder: Record<string, number> = { draft: 0, published: 1, closed: 2, awarded: 3 }
+  const currentIdx = statusOrder[rfq.status] ?? 0
+  const timelineSteps = [
+    { key: 'draft',     label: 'Borrador',    sub: 'Creada y en edición' },
+    { key: 'published', label: 'Publicada',   sub: 'Invitaciones enviadas' },
+    { key: 'closed',    label: 'En revisión', sub: `${quotes.length} cotización${quotes.length !== 1 ? 'es' : ''} recibida${quotes.length !== 1 ? 's' : ''}` },
+    { key: 'awarded',   label: 'Adjudicada',  sub: 'Proveedor seleccionado' },
+  ]
+
   return (
     <div>
       {/* Breadcrumb */}
@@ -148,6 +195,33 @@ export default function RFQDetail() {
       </div>
 
       {actionErr && <div className="alert alert-error"><span className="alert-icon"><IconWarning /></span><span>{actionErr}</span></div>}
+
+      {/* ── Supplier urgency banner ──────────────────────────── */}
+      {isSupplier && rfq.status === 'published' && canQuote && !myQuote && (
+        <div style={{
+          background: 'var(--attention)',
+          border: '1px solid var(--attention-border)',
+          borderLeft: '4px solid var(--attention-border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '14px 20px',
+          marginBottom: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: '#B45309', flexShrink: 0, display: 'flex' }}><IconAlertCircle /></span>
+            <div>
+              <div style={{ fontWeight: 700, color: '#92400E', fontSize: 14 }}>Cotización pendiente</div>
+              <div style={{ fontSize: 13, color: '#78350F', marginTop: 2 }}>
+                Esta empresa te invitó a cotizar. Responde antes de que la solicitud cierre.
+              </div>
+            </div>
+          </div>
+          <button className="btn btn-accent btn-sm" style={{ flexShrink: 0 }}
+            onClick={() => navigate(`/rfqs/${rfq.id}/quote`)}>
+            <IconCoin /> Cotizar ahora
+          </button>
+        </div>
+      )}
 
       {/* ── Header ──────────────────────────────────────────── */}
       <div style={{
@@ -196,12 +270,12 @@ export default function RFQDetail() {
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignSelf: 'flex-start' }}>
             {isBuyer && rfq.status === 'draft' && (
-              <button className="btn btn-success" onClick={() => doAction(() => publishRFQ(rfq.id))}>
+              <button className="btn btn-success" onClick={() => doAction(() => publishRFQ(rfq.id), 'RFQ publicada correctamente')}>
                 <IconRocket /> Publicar RFQ
               </button>
             )}
             {isBuyer && rfq.status === 'published' && (
-              <button className="btn btn-ghost" onClick={() => doAction(() => closeRFQ(rfq.id))}>
+              <button className="btn btn-ghost" onClick={() => doAction(() => closeRFQ(rfq.id), 'Recepción de cotizaciones cerrada')}>
                 <IconLock /> Cerrar RFQ
               </button>
             )}
@@ -280,12 +354,22 @@ export default function RFQDetail() {
                     color: quotes.length > 0 ? 'var(--success)' : 'var(--text-muted)',
                   }}>{quotes.length}</span>
                   {quotes.length > 0 && (
-                    <button
-                      className={`btn btn-sm ${showCompare ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => setCompare(!showCompare)}
-                    >
-                      {showCompare ? <><IconList /> Ver lista</> : <><IconBarChart /> Comparar</>}
-                    </button>
+                    <>
+                      <button
+                        className={`btn btn-sm ${showCompare ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setCompare(!showCompare)}
+                      >
+                        {showCompare ? <><IconList /> Ver lista</> : <><IconBarChart /> Comparar</>}
+                      </button>
+                      {showCompare && (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => addToast('Exportar a Excel — próximamente disponible', 'info')}
+                        >
+                          <IconDownload /> Exportar
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -313,6 +397,7 @@ export default function RFQDetail() {
                       <th>Ítems</th>
                       <th>Fecha</th>
                       <th>Precio mín. (L1)</th>
+                      {rfq.status !== 'awarded' && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -321,7 +406,9 @@ export default function RFQDetail() {
                       return (
                         <tr key={q.id}>
                           <td>
-                            <div style={{ fontWeight: 600 }}>{supplierMap[q.supplierCompanyId] ?? q.supplierCompanyId}</div>
+                            <Link to={`/suppliers/${q.supplierCompanyId}`} style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}>
+                              {supplierMap[q.supplierCompanyId] ?? q.supplierCompanyId}
+                            </Link>
                           </td>
                           <td>
                             <span className="badge badge-submitted">
@@ -330,9 +417,26 @@ export default function RFQDetail() {
                           </td>
                           <td style={{ textAlign: 'center' }}>{q.items.length}</td>
                           <td className="text-small text-muted">{new Date(q.createdAt).toLocaleDateString('es-CL')}</td>
-                          <td style={{ fontWeight: 700, color: 'var(--success)', fontFeatureSettings: '"tnum"' }}>
-                            {isFinite(minPrice) ? `${minPrice.toLocaleString('es-CL')} ${q.items[0]?.currency ?? ''}` : '—'}
+                          <td style={{ fontWeight: 700, color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                            {isFinite(minPrice)
+                              ? (q.items[0]?.currency === 'CLP' ? formatCLP(minPrice) : `${minPrice.toLocaleString('es-CL')} ${q.items[0]?.currency ?? ''}`)
+                              : '—'}
                           </td>
+                          {rfq.status !== 'awarded' && (
+                            <td>
+                              <button
+                                className="btn btn-sm btn-success"
+                                onClick={async () => {
+                                  await doAction(() => closeRFQ(rfq.id), 'RFQ cerrada')
+                                  localStorage.setItem(`awarded-${rfq.id}`, q.id)
+                                  addToast(`Adjudicado a ${supplierMap[q.supplierCompanyId] ?? q.supplierCompanyId}. Ver pedido →`, 'success')
+                                  navigate(`/orders/order-${rfq.id}`)
+                                }}
+                              >
+                                <IconAward /> Adjudicar
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
@@ -362,7 +466,9 @@ export default function RFQDetail() {
                   {myQuote.items.map(qi => (
                     <tr key={qi.id}>
                       <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{qi.rfqItemId}</td>
-                      <td style={{ fontWeight: 700, color: 'var(--success)', fontFeatureSettings: '"tnum"' }}>{qi.unitPrice.toLocaleString('es-CL')}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                        {qi.currency === 'CLP' ? formatCLP(qi.unitPrice) : `${qi.unitPrice.toLocaleString('es-CL')} ${qi.currency}`}
+                      </td>
                       <td>{qi.currency}</td>
                       <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><IconClock />{qi.leadTimeDays} días</span></td>
                     </tr>
@@ -375,6 +481,46 @@ export default function RFQDetail() {
 
         {/* ── Right column — sidebar ────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Timeline */}
+          <div className="card">
+            <div className="card-header"><div className="card-title">Progreso del RFQ</div></div>
+            <div style={{ padding: '16px 20px' }}>
+              {timelineSteps.map((step, i) => {
+                const state  = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'
+                const isLast = i === timelineSteps.length - 1
+                return (
+                  <div key={step.key} style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: state === 'done' ? 'var(--success)' : state === 'active' ? 'var(--primary)' : 'var(--border)',
+                        color: state === 'pending' ? 'var(--text-muted)' : '#fff',
+                        fontSize: 11, fontWeight: 700, flexShrink: 0,
+                      }}>
+                        {state === 'done' ? <IconCheckSmall /> : i + 1}
+                      </div>
+                      {!isLast && (
+                        <div style={{ width: 2, flex: 1, minHeight: 18, background: i < currentIdx ? 'var(--success)' : 'var(--border)', margin: '3px 0' }} />
+                      )}
+                    </div>
+                    <div style={{ paddingBottom: isLast ? 0 : 20 }}>
+                      <div style={{
+                        fontSize: 13,
+                        fontWeight: state === 'active' ? 700 : 600,
+                        color: state === 'active' ? 'var(--primary)' : state === 'done' ? 'var(--success)' : 'var(--text-muted)',
+                        marginBottom: 1,
+                      }}>
+                        {step.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{step.sub}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Quick stats */}
           <div className="card">
@@ -412,7 +558,9 @@ export default function RFQDetail() {
                     padding: '12px 0', borderBottom: '1px solid var(--border)',
                   }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{supplierMap[sid] ?? sid}</div>
+                      <Link to={`/suppliers/${sid}`} style={{ fontWeight: 600, fontSize: 13, color: 'var(--primary)', textDecoration: 'none' }}>
+                        {supplierMap[sid] ?? sid}
+                      </Link>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sid}</div>
                     </div>
                     <span style={{
@@ -435,13 +583,13 @@ export default function RFQDetail() {
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {isBuyer && rfq.status === 'draft' && (
                 <button className="btn btn-success" style={{ justifyContent: 'center' }}
-                  onClick={() => doAction(() => publishRFQ(rfq.id))}>
+                  onClick={() => doAction(() => publishRFQ(rfq.id), 'RFQ publicada correctamente')}>
                   <IconRocket /> Publicar RFQ
                 </button>
               )}
               {isBuyer && rfq.status === 'published' && (
                 <button className="btn btn-ghost" style={{ justifyContent: 'center' }}
-                  onClick={() => doAction(() => closeRFQ(rfq.id))}>
+                  onClick={() => doAction(() => closeRFQ(rfq.id), 'Recepción de cotizaciones cerrada')}>
                   <IconLock /> Cerrar recepción
                 </button>
               )}

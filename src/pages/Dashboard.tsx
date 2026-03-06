@@ -1,308 +1,326 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { listRFQs, listTemplates } from '../api/client'
-import type { RFQ, Template } from '../types/dto'
-import { CATEGORY_META } from './CatalogPage'
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Borrador', published: 'Publicada', closed: 'Cerrada', awarded: 'Adjudicada',
-}
-const STATUS_CLASS: Record<string, string> = {
-  draft: 'draft', published: 'published', closed: 'closed', awarded: 'awarded',
-}
+import { Link } from 'react-router-dom'
+import { listRFQs, listQuotesByRFQ } from '../api/client'
+import type { RFQ, Quote } from '../types/dto'
 
 const COMPANY_NAMES: Record<string, string> = {
   'buyer-1': 'Constructora Norte', 'buyer-2': 'Minera Atacama',
   'sup-1': 'Proveedora Aceros', 'sup-2': 'Tuberías del Sur',
   'sup-3': 'Electro Industrial', 'sup-4': 'HormigonSur',
 }
-const ROLE_LABELS: Record<string, string> = {
-  buyer_user: 'Comprador', supplier_user: 'Proveedor', company_admin: 'Administrador',
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Borrador', published: 'Activa', closed: 'Cerrada', awarded: 'Adjudicada',
 }
 
-/* ── Icons ──────────────────────────────────────────── */
-const IconClipboard = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="2" width="6" height="4" rx="1"/>
-    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-    <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
-  </svg>
-)
+const PRICE_TRENDS = [
+  { name: 'Acero Estructural (ASTM A36)', unit: 'USD/Tonelada', price: '$890.00', change: -2.4 },
+  { name: 'Cable de Cobre (Media Tensión)', unit: 'USD/Metro', price: '$12.45', change: +0.8 },
+  { name: 'Resina PVC (Grado Tubería)', unit: 'USD/kg', price: '$1.12', change: 0.0 },
+]
 
-const IconCheck = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-    <polyline points="22 4 12 14.01 9 11.01"/>
-  </svg>
-)
+const RECENT_HISTORY = [
+  { color: 'var(--primary)', icon: 'swap_horiz', text: 'RFQ "Tuberías PEAD" publicada', time: 'Hace 2 días' },
+  { color: 'var(--success)', icon: 'request_quote', text: 'Nueva cotización recibida de Proveedora Aceros', time: 'Hace 3 días' },
+  { color: '#7C3AED', icon: 'local_shipping', text: 'Orden #ORD-001 en tránsito', time: 'Hace 5 días' },
+]
 
-const IconEdit = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-  </svg>
-)
-
-const IconLayers = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-    <polyline points="2 17 12 22 22 17"/>
-    <polyline points="2 12 12 17 22 12"/>
-  </svg>
-)
-
-const IconMail = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-    <polyline points="22 6 12 13 2 6"/>
-  </svg>
-)
-
-const IconBell = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-  </svg>
-)
-
-const IconStore = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-    <line x1="3" y1="6" x2="21" y2="6"/>
-    <path d="M16 10a4 4 0 0 1-8 0"/>
-  </svg>
-)
-
-const IconList = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-  </svg>
-)
-
-const IconPlus = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-  </svg>
-)
+function workspaceStrip(status: string) {
+  if (status === 'published') return 'var(--info)'
+  if (status === 'draft') return '#F59E0B'
+  return 'var(--border-dark)'
+}
 
 export default function Dashboard() {
-  const navigate    = useNavigate()
-  const tenantId    = localStorage.getItem('tenantCompanyId') ?? ''
-  const role        = localStorage.getItem('userRole') ?? ''
-  const isBuyer     = role === 'buyer_user' || role === 'company_admin'
+  const tenantId = localStorage.getItem('tenantCompanyId') ?? ''
+  const companyName = COMPANY_NAMES[tenantId] ?? tenantId
 
-  const [rfqs,      setRfqs]      = useState<RFQ[]>([])
-  const [templates, setTemplates] = useState<Template[]>([])
-  const [loading,   setLoading]   = useState(true)
+  const [rfqs, setRfqs] = useState<RFQ[]>([])
+  const [quotesMap, setQuotesMap] = useState<Record<string, Quote[]>>({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([listRFQs(), listTemplates()])
-      .then(([r, t]) => { setRfqs(r); setTemplates(t) })
+    listRFQs()
+      .then(async r => {
+        setRfqs(r)
+        const published = r.filter(rfq => rfq.status === 'published')
+        const results = await Promise.all(
+          published.map(rfq => listQuotesByRFQ(rfq.id).catch(() => [] as Quote[]))
+        )
+        const map: Record<string, Quote[]> = {}
+        published.forEach((rfq, i) => { map[rfq.id] = results[i] })
+        setQuotesMap(map)
+      })
       .finally(() => setLoading(false))
   }, [])
 
-  const published   = rfqs.filter(r => r.status === 'published').length
-  const draft       = rfqs.filter(r => r.status === 'draft').length
-  const totalQuotes = rfqs.reduce((sum, r) => sum + (r.items?.length ?? 0), 0)
-  const recentRfqs  = [...rfqs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5)
+  // Alert cards
+  const draftRfqs = rfqs.filter(r => r.status === 'draft')
+  const publishedWithQuotes = rfqs.filter(r => r.status === 'published' && (quotesMap[r.id]?.length ?? 0) > 0)
 
-  const stats = isBuyer
-    ? [
-        { icon: <IconClipboard />, label: 'RFQs totales',     value: rfqs.length,       iconBg: 'var(--primary-light)',  iconColor: 'var(--primary)' },
-        { icon: <IconCheck />,     label: 'Publicadas',         value: published,          iconBg: '#D1FAE5',               iconColor: 'var(--success)' },
-        { icon: <IconEdit />,      label: 'Borradores',         value: draft,              iconBg: '#FEF3C7',               iconColor: 'var(--warning)' },
-        { icon: <IconLayers />,    label: 'Categorías activas', value: templates.length,   iconBg: '#EDE9FE',               iconColor: 'var(--purple)' },
-      ]
-    : [
-        { icon: <IconMail />,      label: 'Invitaciones activas', value: rfqs.length,       iconBg: '#D1FAE5',             iconColor: 'var(--success)' },
-        { icon: <IconClipboard />, label: 'Ítems a cotizar',       value: totalQuotes,       iconBg: 'var(--primary-light)', iconColor: 'var(--primary)' },
-        { icon: <IconLayers />,    label: 'Categorías',            value: templates.length,  iconBg: '#EDE9FE',             iconColor: 'var(--purple)' },
-        { icon: <IconBell />,      label: 'Pendientes',            value: rfqs.filter(r => r.status === 'published').length, iconBg: '#FEF3C7', iconColor: 'var(--warning)' },
-      ]
+  // Workspace cards — published + draft RFQs
+  const workspaceRfqs = rfqs.filter(r => r.status === 'published' || r.status === 'draft').slice(0, 6)
 
   return (
     <div>
-
-      {/* ── Welcome banner ───────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #112649 0%, var(--primary) 55%, #2B5BA8 100%)',
-        borderRadius: 'var(--radius-xl)',
-        padding: '28px 32px',
-        marginBottom: 28,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
-        boxShadow: '0 4px 20px rgba(27,58,107,0.25)',
-        position: 'relative', overflow: 'hidden',
-      }}>
-        {/* Dot-grid decorative background */}
-        <div style={{
-          position: 'absolute', inset: 0, opacity: 0.04,
-          backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-          backgroundSize: '24px 24px',
-          pointerEvents: 'none',
-        }} />
-        {/* Decorative circles */}
-        <div style={{ position: 'absolute', right: -40, top: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', right: 60, bottom: -60, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
-
-        <div style={{ position: 'relative' }}>
-          <div style={{ color: '#93C5FD', fontSize: 12, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {ROLE_LABELS[role] ?? role}
+      {/* ── Hero banner ──────────────────────────────────── */}
+      <div className="buyer-hero">
+        <div style={{ maxWidth: 700, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            Centro de Operaciones
           </div>
-          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-            {COMPANY_NAMES[tenantId] ?? tenantId}
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#fff', lineHeight: 1.2, letterSpacing: '-0.01em', marginBottom: 6 }}>
+            Bienvenido de nuevo, {companyName}
           </h1>
-          <p style={{ color: '#93C5FD', fontSize: 14, maxWidth: 440, lineHeight: 1.6 }}>
-            {isBuyer
-              ? 'Gestiona tus solicitudes de cotización y compara ofertas de proveedores en tiempo real.'
-              : 'Revisa las solicitudes donde fuiste invitado y envía tus mejores propuestas.'}
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', marginBottom: 24 }}>
+            Gestiona tus solicitudes de cotización y proveedores desde un solo lugar.
           </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', position: 'relative' }}>
-          {isBuyer && (
-            <button className="btn btn-accent btn-lg" onClick={() => navigate('/rfqs/new')}>
-              <IconPlus /> Nueva RFQ
+          {/* Search bar */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <span className="mat-icon" style={{
+                position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+                fontSize: 18, color: 'rgba(255,255,255,0.5)', pointerEvents: 'none',
+              }}>search</span>
+              <input
+                className="buyer-hero-search"
+                type="text"
+                placeholder="Buscar materiales, proveedores o RFQs..."
+              />
+            </div>
+            <button
+              className="btn btn-accent btn-sm"
+              title="Cargar especificaciones técnicas"
+              style={{ flexShrink: 0, height: 44, paddingInline: 14 }}
+            >
+              <span className="mat-icon" style={{ fontSize: 18 }}>upload_file</span>
             </button>
-          )}
-          <button className="btn btn-lg"
-            style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)' }}
-            onClick={() => navigate('/catalog')}>
-            Ver vitrina
-          </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Stats ────────────────────────────────────────── */}
-      {loading ? (
-        <div className="stat-grid" style={{ marginBottom: 28 }}>
-          {[0,1,2,3].map(i => (
-            <div key={i} className="skeleton-card">
-              <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 'var(--radius)', marginBottom: 12 }} />
-              <div className="skeleton" style={{ width: '60%', height: 28, marginBottom: 6 }} />
-              <div className="skeleton" style={{ width: '80%', height: 14 }} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <>
-          <div className="stat-grid">
-            {stats.map(s => (
-              <div key={s.label} className="stat-card">
-                <div className="stat-card-icon" style={{ background: s.iconBg, color: s.iconColor }}>
-                  {s.icon}
-                </div>
-                <div className="stat-card-value">{s.value}</div>
-                <div className="stat-card-label">{s.label}</div>
-              </div>
-            ))}
-          </div>
+      <div style={{ padding: '28px 32px 48px' }}>
 
-          {/* ── Catalog preview ────────────────────────────── */}
+        {/* ── Alertas y Acciones Prioritarias ──────────────── */}
+        {!loading && (draftRfqs.length > 0 || publishedWithQuotes.length > 0) && (
           <div style={{ marginBottom: 28 }}>
-            <div className="flex-between mb-16">
-              <h2 className="section-heading" style={{ marginBottom: 0 }}>
-                <span className="section-heading-icon"><IconStore /></span>
-                Vitrina de proveedores
-              </h2>
-              <Link to="/catalog" className="btn btn-ghost btn-sm">Ver todas →</Link>
-            </div>
-            <div className="catalog-grid">
-              {templates.slice(0, 4).map(t => {
-                const meta = CATEGORY_META[t.categoryKey] ?? { icon: null, color: '#E2E8F0', desc: '' }
-                return (
-                  <Link
-                    key={t.categoryKey}
-                    to={isBuyer ? `/rfqs/new?category=${t.categoryKey}` : '/catalog'}
-                    className="catalog-card"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <div className="catalog-card-icon" style={{ background: meta.color }}>
-                      {meta.icon}
+            <h2 className="section-heading" style={{ marginBottom: 14 }}>
+              <span className="section-heading-icon">
+                <span className="mat-icon" style={{ fontSize: 16 }}>notifications_active</span>
+              </span>
+              Alertas y Acciones Prioritarias
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {draftRfqs.slice(0, 1).map(rfq => (
+                <Link key={rfq.id} to={`/rfqs/${rfq.id}`} style={{ textDecoration: 'none' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    background: '#FFFBEB', border: '1px solid #F59E0B',
+                    borderRadius: 'var(--radius-lg)', padding: '14px 18px',
+                    transition: 'box-shadow 0.15s',
+                  }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <span className="mat-icon mat-icon-filled" style={{ fontSize: 18, color: '#D97706' }}>edit_note</span>
                     </div>
-                    <div>
-                      <div className="catalog-card-name">{t.name}</div>
-                      <div className="catalog-card-attrs mt-4">
-                        {t.attributes.length} especificaciones · {t.attributes.filter(a => a.required).length} obligatorias
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>Borrador pendiente de envío</div>
+                      <div style={{ fontSize: 12, color: '#B45309', marginTop: 2 }}>
+                        "{rfq.title}" — Publica para recibir cotizaciones
                       </div>
                     </div>
-                    <div className="catalog-card-footer">
-                      <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>
-                        {isBuyer ? 'Crear RFQ →' : 'Ver categoría →'}
-                      </span>
+                    <span className="mat-icon" style={{ fontSize: 16, color: '#D97706' }}>chevron_right</span>
+                  </div>
+                </Link>
+              ))}
+              {publishedWithQuotes.slice(0, 1).map(rfq => (
+                <Link key={rfq.id} to={`/rfqs/${rfq.id}`} style={{ textDecoration: 'none' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    background: '#F0FDF4', border: '1px solid #6EE7B7',
+                    borderRadius: 'var(--radius-lg)', padding: '14px 18px',
+                  }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <span className="mat-icon mat-icon-filled" style={{ fontSize: 18, color: '#059669' }}>request_quote</span>
                     </div>
-                  </Link>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#065F46' }}>Nueva cotización recibida</div>
+                      <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>
+                        "{rfq.title}" — {quotesMap[rfq.id]?.length ?? 0} cotización{(quotesMap[rfq.id]?.length ?? 0) !== 1 ? 'es' : ''} lista{(quotesMap[rfq.id]?.length ?? 0) !== 1 ? 's' : ''} para revisar
+                      </div>
+                    </div>
+                    <span className="mat-icon" style={{ fontSize: 16, color: '#059669' }}>chevron_right</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Industrial Workspaces ─────────────────────────── */}
+        <div style={{ marginBottom: 32 }}>
+          <div className="flex-between mb-16">
+            <h2 className="section-heading" style={{ marginBottom: 0 }}>
+              <span className="section-heading-icon">
+                <span className="mat-icon" style={{ fontSize: 16 }}>workspaces</span>
+              </span>
+              Industrial Workspaces
+            </h2>
+            <Link to="/rfqs" className="btn btn-ghost btn-sm">Ver todos →</Link>
+          </div>
+
+          {loading ? (
+            <div className="workspace-grid">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="skeleton-card" style={{ height: 160 }} />
+              ))}
+            </div>
+          ) : (
+            <div className="workspace-grid">
+              {workspaceRfqs.map(rfq => {
+                const quoteCount = quotesMap[rfq.id]?.length ?? 0
+                const stripColor = workspaceStrip(rfq.status)
+                return (
+                  <div key={rfq.id} className="workspace-card">
+                    <div className="workspace-card-strip" style={{ background: stripColor }} />
+                    <div className="workspace-card-body">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3, marginBottom: 3 }}>
+                            {rfq.title}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{rfq.id}</div>
+                        </div>
+                        <span style={{
+                          flexShrink: 0,
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                          background: rfq.status === 'published' ? 'var(--status-published-bg)' : rfq.status === 'draft' ? 'var(--status-draft-bg)' : 'var(--status-closed-bg)',
+                          color: rfq.status === 'published' ? 'var(--status-published-text)' : rfq.status === 'draft' ? 'var(--status-draft-text)' : 'var(--status-closed-text)',
+                        }}>
+                          {STATUS_LABELS[rfq.status] ?? rfq.status}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text)' }}>{rfq.items?.length ?? 0}</span> Ítems
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          <span style={{ fontWeight: 700, color: quoteCount > 0 ? 'var(--success)' : 'var(--text)' }}>{quoteCount}</span> Cotizaciones
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          {rfq.invitedSupplierCompanyIds?.slice(0, 3).map((id, i) => {
+                            const name = COMPANY_NAMES[id] ?? id
+                            const init = name.split(' ').slice(0, 2).map((w: string) => w[0] ?? '').join('').toUpperCase()
+                            return <div key={i} className="team-avatar">{init}</div>
+                          })}
+                        </div>
+                        <Link to={`/rfqs/${rfq.id}`} style={{
+                          fontSize: 12, fontWeight: 600, color: 'var(--primary)',
+                          textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                          Gestionar
+                          <span className="mat-icon" style={{ fontSize: 14 }}>arrow_forward</span>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 )
               })}
+              {/* Add new workspace */}
+              <Link to="/rfqs/new" className="workspace-card-add">
+                <span className="mat-icon" style={{ fontSize: 28 }}>add_circle_outline</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Nuevo Workspace</span>
+              </Link>
             </div>
-          </div>
+          )}
+        </div>
 
-          {/* ── Recent RFQs ─────────────────────────────────── */}
-          <div>
-            <div className="flex-between mb-16">
-              <h2 className="section-heading" style={{ marginBottom: 0 }}>
-                <span className="section-heading-icon"><IconList /></span>
-                {isBuyer ? 'Mis RFQs recientes' : 'Solicitudes recientes'}
-              </h2>
-              <Link to="/rfqs" className="btn btn-ghost btn-sm">Ver todas →</Link>
+        {/* ── Bottom 2-column ──────────────────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+
+          {/* Market Price Trends */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="section-heading-icon">
+                <span className="mat-icon" style={{ fontSize: 16 }}>trending_up</span>
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Tendencias de Precios de Mercado</span>
             </div>
-
-            {recentRfqs.length === 0 ? (
-              <div className="card">
-                <div className="empty-state">
-                  <div className="empty-state-icon"><IconClipboard /></div>
-                  <div className="empty-state-title">Sin RFQs todavía</div>
-                  <div className="empty-state-desc">
-                    {isBuyer ? 'Crea tu primera solicitud de cotización desde el catálogo.' : 'Aún no tienes invitaciones activas.'}
+            <div>
+              {PRICE_TRENDS.map((item, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 16,
+                  padding: '14px 20px',
+                  borderBottom: i < PRICE_TRENDS.length - 1 ? '1px solid var(--border)' : 'none',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{item.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.unit}</div>
                   </div>
-                  {isBuyer && (
-                    <Link to="/rfqs/new" className="btn btn-primary btn-sm" style={{ marginTop: 16 }}>
-                      Crear RFQ
-                    </Link>
-                  )}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{item.price}</div>
+                    <div style={{
+                      fontSize: 11, fontWeight: 700, marginTop: 2,
+                      color: item.change > 0 ? 'var(--success)' : item.change < 0 ? 'var(--danger)' : 'var(--text-muted)',
+                      display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end',
+                    }}>
+                      {item.change !== 0 && (
+                        <span className="mat-icon" style={{ fontSize: 13 }}>
+                          {item.change > 0 ? 'trending_up' : 'trending_down'}
+                        </span>
+                      )}
+                      {item.change === 0 ? 'Sin cambio' : `${item.change > 0 ? '+' : ''}${item.change}%`}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Título</th>
-                      <th>Categoría</th>
-                      <th>Estado</th>
-                      <th>Ítems</th>
-                      <th>Fecha</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentRfqs.map(rfq => (
-                      <tr key={rfq.id}>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>{rfq.title}</div>
-                          <div className="text-small text-muted">{rfq.buyerCompanyId}</div>
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{rfq.categoryKey.replace(/_/g, ' ')}</td>
-                        <td>
-                          <span className={`badge badge-${STATUS_CLASS[rfq.status]}`}>
-                            {STATUS_LABELS[rfq.status]}
-                          </span>
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{rfq.items?.length ?? 0}</td>
-                        <td className="text-small text-muted" style={{ whiteSpace: 'nowrap' }}>
-                          {new Date(rfq.createdAt).toLocaleDateString('es-CL')}
-                        </td>
-                        <td>
-                          <Link to={`/rfqs/${rfq.id}`} className="btn btn-ghost btn-sm">Ver →</Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
-        </>
-      )}
+
+          {/* Historial Reciente */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="section-heading-icon">
+                <span className="mat-icon" style={{ fontSize: 16 }}>history</span>
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Historial Reciente</span>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              {RECENT_HISTORY.map((event, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, marginBottom: i < RECENT_HISTORY.length - 1 ? 16 : 0, position: 'relative' }}>
+                  {i < RECENT_HISTORY.length - 1 && (
+                    <div style={{
+                      position: 'absolute', left: 14, top: 28,
+                      width: 2, height: 'calc(100% + 16px)',
+                      background: 'var(--border)',
+                    }} />
+                  )}
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                    background: event.color + '20',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    position: 'relative',
+                  }}>
+                    <span className="mat-icon" style={{ fontSize: 14, color: event.color }}>{event.icon}</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', lineHeight: 1.4 }}>{event.text}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{event.time}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
   )
 }
