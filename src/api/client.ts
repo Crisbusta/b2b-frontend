@@ -9,7 +9,7 @@ import type {
 import { MOCK_ORDERS } from '../data/mockData'
 import type { Order } from '../types/dto'
 
-const BASE_URL = `${import.meta.env.VITE_API_URL ?? ''}/api/v1`
+const BASE_URL = `${(import.meta.env.VITE_API_URL ?? '').trim()}/api/v1`
 
 function getAuthHeaders(): Record<string, string> {
   const tenantCompanyId = localStorage.getItem('tenantCompanyId') ?? ''
