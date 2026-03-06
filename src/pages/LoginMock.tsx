@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Company } from '../types/dto'
+import { listCompanies } from '../api/client'
 
 const ROLES = [
   { value: 'buyer_user',    label: 'Comprador',    desc: 'Crear y gestionar RFQs' },
@@ -28,10 +29,7 @@ export default function LoginMock() {
     if (localStorage.getItem('tenantCompanyId') && role) {
       navigate(role === 'supplier_user' ? '/seller' : '/dashboard'); return
     }
-    fetch('/api/v1/companies', {
-      headers: { 'X-Tenant-Company-Id': 'system', 'X-Mock-User-Role': 'company_admin' },
-    })
-      .then(r => r.json())
+    listCompanies()
       .then((data: Company[]) => {
         const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name))
         setCompanies(sorted)
@@ -40,7 +38,7 @@ export default function LoginMock() {
           setRole(sorted[0].type === 'supplier' ? 'supplier_user' : 'buyer_user')
         }
       })
-      .catch(() => setError('No se pudo conectar con la API. ¿Está corriendo docker compose?'))
+      .catch(() => setError('No se pudo conectar con la API.'))
       .finally(() => setLoading(false))
   }, [navigate])
 
